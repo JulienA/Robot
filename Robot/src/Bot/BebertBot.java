@@ -88,7 +88,7 @@ public class BebertBot extends Robot {
 		if (e.getDistance() > 150) {
 			
 			setAdjustGunForRobotTurn(true);
-			turnGunRight(bearingFromGun); // Try changing these to setTurnGunRight,
+			turnGunRight(bearingFromGun);
 			
 			ahead(randomDegree(0, 100));
 			turnRight(randomDegree(0, 10));
