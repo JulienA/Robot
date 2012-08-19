@@ -30,6 +30,13 @@ public class BebertBot extends AdvancedRobot {
 
 	double firePower; // the power of the shot we will be using - set by do
 						// firePower()
+	private double _bfWidth;
+	private double _bfHeight;
+
+	private static double WALL_STICK = 300;
+	private java.awt.geom.Rectangle2D.Double _fieldRect = new java.awt.geom.Rectangle2D.Double(
+			18, 18, _bfWidth - 36, _bfHeight - 36);
+	private double angle;
 
 	public double randomDegree(double min, double max) {
 
@@ -40,6 +47,9 @@ public class BebertBot extends AdvancedRobot {
 	}
 
 	public void run() {
+
+		_bfWidth = getBattleFieldWidth();
+		_bfHeight = getBattleFieldHeight();
 
 		addCustomEvent(new Condition("bulletfired") {
 			public boolean test() {
@@ -84,13 +94,22 @@ public class BebertBot extends AdvancedRobot {
 	}
 
 	private void doMovement() {
-		if (getTime() % 20 == 0) { // every twenty 'ticks'
-			direction *= -1; // reverse direction
-			setAhead(direction * 300); // move in that direction
 
+		double x = getX();
+		double y = getY();
+		double moveAngle = getHeading();
+		int toward = 1;
+		double wallAngle = randomDegree(-180, 180);
+
+		// double wallAngle = wallSmoothing(x, y, moveAngle, direction, toward);
+
+		if (getTime() % randomDegree(5, 25) == 0) { // every twenty 'ticks'
+			direction *= -1; // reverse direction
+			setAhead(direction * randomDegree(300, 500)); // move in that
+															// direction
 		}
 
-		setTurnRight(randomDegree(-180, 180));
+		setTurnRight(wallAngle);
 
 		// setTurnRightRadians(target.bearing + (PI / 2)); // every turn move to
 		// circle strafe the
@@ -193,16 +212,30 @@ public class BebertBot extends AdvancedRobot {
 
 	@Override
 	public void onHitByBullet(HitByBulletEvent event) {
+		double x = getX();
+		double y = getY();
+		double moveAngle = getHeading();
+		int toward = 1;
 		direction *= -1;
-		setTurnRight(randomDegree(-180, 180));
-		setBack(Math.random());
+		// double wallAngle = wallSmoothing(x, y, moveAngle, direction,
+		// toward);
+		double wallAngle = randomDegree(-180, 180);
+		setTurnRight(wallAngle);
+		setAhead(direction * randomDegree(200, 500));
 	}
 
 	@Override
 	public void onHitRobot(HitRobotEvent event) {
+		double x = getX();
+		double y = getY();
+		double moveAngle = getHeading();
+		int toward = 1;
 		direction *= -1;
-		setTurnRight(randomDegree(-180, 180));
-		setBack(Math.random());
+		// double wallAngle = wallSmoothing(x, y, moveAngle, direction,
+		// toward);
+		double wallAngle = randomDegree(-180, 180);
+		setTurnRight(wallAngle);
+		setAhead(direction * randomDegree(200, 500));
 	}
 
 	@Override
@@ -231,10 +264,68 @@ public class BebertBot extends AdvancedRobot {
 	public void onCustomEvent(CustomEvent e) {
 		// If our custom event "bulletfired" went off,
 		if (e.getCondition().getName().equals("bulletfired")) {
+			double x = getX();
+			double y = getY();
+			double moveAngle = getHeading();
+			int toward = 1;
 			direction *= -1;
-			setTurnRight(randomDegree(-180, 180));
-			setBack(Math.random());
+			// double wallAngle = wallSmoothing(x, y, moveAngle, direction,
+			// toward);
+			double wallAngle = randomDegree(-180, 180);
+			setTurnRight(wallAngle);
+			setAhead(direction * randomDegree(200, 500));
 		}
+	}
+
+	public double wallSmoothing(double x, double y, double startAngle,
+			int orientation, int smoothTowardEnemy) {
+
+		angle = startAngle;
+
+		// in Java, (-3 MOD 4) is not 1, so make sure we have some excess
+		// positivity here
+		angle += (4 * Math.PI);
+
+		double testX = x + (Math.sin(angle) * WALL_STICK);
+		double testY = y + (Math.cos(angle) * WALL_STICK);
+		double wallDistanceX = Math.min(x - 18, _bfWidth - x - 18);
+		double wallDistanceY = Math.min(y - 18, _bfHeight - y - 18);
+		double testDistanceX = Math.min(testX - 18, _bfWidth - testX - 18);
+		double testDistanceY = Math.min(testY - 18, _bfHeight - testY - 18);
+
+		double adjacent = 0;
+		int g = 0; // because I'm paranoid about potential infinite loops
+
+		while (!_fieldRect.contains(testX, testY) && g++ < 25) {
+			if (testDistanceY < 0 && testDistanceY < testDistanceX) {
+				// wall smooth North or South wall
+				angle = ((int) ((angle + (Math.PI / 2)) / Math.PI)) * Math.PI;
+				adjacent = Math.abs(wallDistanceY);
+			} else if (testDistanceX < 0 && testDistanceX <= testDistanceY) {
+				// wall smooth East or West wall
+				angle = (((int) (angle / Math.PI)) * Math.PI) + (Math.PI / 2);
+				adjacent = Math.abs(wallDistanceX);
+			}
+
+			// use your own equivalent of (1 / POSITIVE_INFINITY) instead of
+			// 0.005
+			// if you want to stay closer to the wall ;)
+			angle += smoothTowardEnemy * orientation
+					* (Math.abs(Math.acos(adjacent / WALL_STICK)) + 0.005);
+
+			testX = x + (Math.sin(angle) * WALL_STICK);
+			testY = y + (Math.cos(angle) * WALL_STICK);
+			testDistanceX = Math.min(testX - 18, _bfWidth - testX - 18);
+			testDistanceY = Math.min(testY - 18, _bfHeight - testY - 18);
+
+			if (smoothTowardEnemy == -1) {
+				// this method ended with tank smoothing away from enemy... you
+				// may
+				// need to note that globally, or maybe you don't care.
+			}
+		}
+
+		return angle; // you may want to normalize this
 	}
 
 	// if a bearing is not within the -pi to pi range, alters it to provide the
